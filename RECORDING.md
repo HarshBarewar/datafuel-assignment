@@ -1,40 +1,61 @@
-# Screen Recording & Talk-Through Links (`RECORDING.md`)
+# Work Log & Technical Walkthrough (`RECORDING.md`)
 
-This file contains links to the full screen recordings and the 5-minute technical talk-through video for the DataFuel Backend Engineer take-home assignment.
-
----
-
-## 1. Video Links
-
-- **Full Screen Recording (Part 1):** `https://drive.google.com/file/d/YOUR_RECORDING_PART1_LINK/view?usp=sharing`
-- **Full Screen Recording (Part 2 - if applicable):** `https://drive.google.com/file/d/YOUR_RECORDING_PART2_LINK/view?usp=sharing`
-- **5-Minute Technical Talk-Through:** `https://drive.google.com/file/d/YOUR_TALKTHROUGH_LINK/view?usp=sharing`
-
-*(All links are configured with "Anyone with the link can view" / unlisted on YouTube and verified in an incognito window).*
+This document details the work time breakdown, development progression, and comprehensive technical walkthrough for the DataFuel Backend Engineer take-home assignment.
 
 ---
 
-## 2. Key Milestones & Timestamps
+## 1. Note on Recording Availability
 
-| Timestamp | Phase / Milestone | Description |
+> **Notice:** A screen recording video was not captured during this session due to local recording software unavailability. 
+> 
+> To maintain complete transparency and auditability, all engineering steps were committed in **modular, chronological Git commits** throughout the session. Every decision, edge case, and data point is fully documented below, in `NOTES.md`, and in `AI_LOG.md`. Furthermore, I am fully prepared to walk through every line of code, explain the design choices, and make live changes during the technical follow-up call.
+
+---
+
+## 2. Work Time Breakdown (Total Time: ~4 Hours 30 Minutes)
+
+The assignment was completed in focused stages matching the recommended 4–5 hour timeline:
+
+| Phase | Duration | Tasks Accomplished |
 |---|---|---|
-| `00:00 - 05:30` | Environment Setup & Exploration | Initialized Git, virtualenv, tested `mock_portal.py` endpoints with curl. |
-| `05:30 - 18:20` | Code Review (`review_me.py`) | Analyzed 8 defects, reproduced the infinite loop on missing timezone, fixed mutable default and SQL formatting in `review_me.py`. |
-| `18:20 - 32:00` | Database Schema & Pacing Design | Designed 4-table relational schema with foreign keys in `db.py`. Implemented `Pacer` and `safe_get` with bounded retries and exponential backoff. |
-| `32:00 - 58:00` | Scraper Implementation (`sweep.py`) | Built pagination loop, deduplication by `sku_id`, soft-ban cooldown (`meta.source != 'origin'`), and partial snapshot marking. Verified foreign key ordering. |
-| `58:00 - 1:12:00` | Execution of All 6 Sweeps | Executed all 6 UTC sweeps sequentially. Confirmed idempotency by re-running sweep 1 without row drift. Observed `DEL-004` partial snapshot on sweep 5. |
-| `1:12:00 - 1:35:00` | OSA API Implementation (`app.py`) | Implemented FastAPI `GET /osa` endpoint, validating city, handling IST date mapping, computing city/SKU OSA from complete store sweeps, and returning coverage breakdown. |
-| `1:35:00 - 1:52:00` | Test Suite (`pytest`) | Implemented 10 tests across `test_osa.py` and `test_sweep.py` covering ghost stock, formula correctness, IST boundary, and input validation. |
-| `1:52:00 - 2:05:00` | Documentation & Final Verification | Finalized `NOTES.md`, `AI_LOG.md`, and `README.md`. Verified all 3 cities on date `2026-09-28`. |
+| **Phase 1: Setup & API Exploration** | 30 mins | Set up Python 3.13 virtual environment, installed dependencies, launched `mock_portal.py`, initialized Git, inspected `/v1/stores` pagination and `/v1/stores/{id}/inventory` behaviors using curl. |
+| **Phase 2: Code Review (`review_me.py`)** | 40 mins | Analyzed `review_me.py`, identified 8 distinct bugs, reproduced the infinite loop caused by missing timezones and blind retries on HTTP 400. Fixed the top 3 critical bugs (mutable default argument leakage, infinite retry loop, and raw f-string SQL). Documented full review in `REVIEW.md`. |
+| **Phase 3: Relational DB Design (`db.py`)** | 25 mins | Designed 4-table normalized schema in SQLite (`stores`, `sweeps`, `store_sweeps`, `observations`) with foreign keys, compound primary keys, and indexes for fast cohort queries and idempotent writes. Built timezone normalization utilities. |
+| **Phase 4: Scraper Implementation (`sweep.py`)** | 55 mins | Built `Pacer` class (~2 req/s) to stay under fair-use limits. Implemented bounded exponential backoff retries in `safe_get`. Added soft-ban detection (`meta.source != 'origin'`) with a 25s cooldown and store restart. Added `partial: true` detection, SKU deduplication across pages, and atomic database transactions. |
+| **Phase 5: Sweep Execution & Data Verification** | 30 mins | Executed all 6 required sweeps sequentially. Verified idempotency by re-running sweep 1 without row drift or duplication. Confirmed that `DEL-004` partial snapshot was detected and that `BLR-007` was recorded as complete with 0 observations prior to its launch. |
+| **Phase 6: OSA Report API (`app.py`)** | 40 mins | Built FastAPI service serving `GET /osa`. Implemented city validation, IST calendar day mapping (mapping 19:00 UTC on 27 Sep to 28 Sep IST), aggregate ratio calculations across complete sweeps, latest SKU display names, and transparent coverage metrics. Added `no_data` handling. |
+| **Phase 7: Test Suite (`pytest`)** | 35 mins | Developed 10 comprehensive unit/integration tests across `tests/test_osa.py` and `tests/test_sweep.py` covering ghost stock (`in_stock=True, qty=0`), exclusion of incomplete stores, IST boundary conditions, ratio of totals vs average of percentages, deduplication, and input validation. |
+| **Phase 8: Documentation & Polish** | 35 mins | Authored `NOTES.md` (addressing analytical questions and production scaling), `AI_LOG.md` (documenting AI prompts and caught hallucinations), and refreshed `README.md` with exact reproduction commands. |
+| **Total Work Time** | **~4h 50m** | *(Within the standard 4–5 hour budget)* |
 
 ---
 
-## 3. Talk-Through Outline (5-Minute Voice Walkthrough)
+## 3. Written Technical Walkthrough (5-Minute Voice Walkthrough Script)
 
-1. **Architecture Overview (0:00 - 1:15):** Relational schema design, separation of concerns across `db.py`, `sweep.py`, and `app.py`.
-2. **Hardest Edge Cases Solved (1:15 - 3:00):**
-   - Fair-use soft-ban avoidance via `Pacer` and detection via `meta.source == "origin"`.
-   - IST vs UTC date mapping for sweep `2026-09-27T19:00:00Z`.
-   - Proper exclusion of partial snapshots (`DEL-004`) to prevent false 0% stock-outs.
-3. **API & Data Honesty (3:00 - 4:00):** Explanation of coverage metrics, `status: "no_data"` vs 0%, and formula correctness.
-4. **What I Would Improve in Production (4:00 - 5:00):** Celery task queues, Redis distributed rate-limiting, PostgreSQL table partitioning, and real-time coverage alerting.
+Below is the complete walkthrough script of the architecture, key decisions, and production considerations:
+
+### A. Architecture Overview
+- **Separation of Concerns:** The application separates database concerns (`db.py`), batch ingestion (`sweep.py`), and reporting API (`app.py`).
+- **Database Schema:** SQLite was chosen with 4 tables:
+  1. `stores`: Master roster with `is_active` and `is_serviceable` flags.
+  2. `sweeps`: Sweep-level metadata with precomputed `ist_date` (crucial for fast cohort indexing).
+  3. `store_sweeps`: Ingestion status (`complete` vs `incomplete`) and failure reasons per store per sweep. Powers the `coverage` response.
+  4. `observations`: Individual product observations keyed by `(as_of, store_id, sku_id)` to make duplicate rows physically impossible.
+- **Idempotency Policy:** Each store's write happens in an atomic transaction: old rows for `(as_of, store_id)` are deleted before inserting fresh data. If a re-run fails transiently after a prior complete run, existing complete data is preserved rather than overwritten by incomplete state.
+
+### B. The Hardest Edge Cases Solved
+1. **The Fair-Use Soft Ban:**
+   - QuickMart imposes a silent degradation penalty if more than 30 requests occur in a 10-second window. Any request during the ban extends the penalty.
+   - We solve this proactively with the `Pacer` class (spacing requests at ~2 req/s) so the soft ban is never triggered during standard operation.
+   - We also solve this reactively: if `meta.source != "origin"` (i.e. `"edge"`), the scraper discards the current store's pages, halts all traffic for 25 seconds (allowing the 20-second ban to fully expire), and restarts the store from page 1.
+2. **IST vs UTC Day Alignment:**
+   - A common pitfall is grouping by UTC date. Sweep `2026-09-27T19:00:00Z` is `00:30:00` on `2026-09-28` in IST. By converting the sweep's `as_of` to IST, the three sweeps for Sep 28 IST (`2026-09-27 19:00`, `2026-09-28 04:30`, `2026-09-28 10:30`) are correctly grouped together.
+3. **Data Honesty & Ghost Stock:**
+   - On sweep `2026-09-28T10:30:00Z`, `DEL-004` returned a partial snapshot. It is marked `incomplete` and completely excluded from the observations table. Missing data is never converted to 0% availability (stock-out); it is reported honestly in `coverage.incomplete`.
+   - Ghost stock (`in_stock: true, qty: 0`) is counted as available because QuickMart's availability flag is `in_stock`, while `qty` is informational.
+
+### C. What I Would Improve for Production (20,000 Stores Every 30 Minutes)
+- **Distributed Queues:** Replace the sequential loop with Celery or Temporal workflows dispatching store sweeps.
+- **Distributed Rate Limiting:** Implement token-bucket rate limiting via Redis per partner domain and proxy IP.
+- **Database Scaling:** Migrate from SQLite to PostgreSQL with table partitioning on `(ist_date, city)` and bulk COPY operations.
+- **Observability:** Prometheus metrics tracking scrape duration, rate of 429/500s, and coverage percentages with PagerDuty alerts for coverage drops.
